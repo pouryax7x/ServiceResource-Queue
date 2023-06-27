@@ -36,53 +36,59 @@ namespace ServiceResource.Business.Queue
             var consumers = new List<Task>();
             for (int i = 0; i < QSetting?.CallBackMaxCallsPerInterval; i++)
             {
-                consumers.Add(Task.Run(() => StartConsumer(channel, QSetting)));
+                consumers.Add(Task.Run(() => StartConsumer(channel, QSetting)).ContinueWith((x) => { QSetting.CallBackCallCount--; }));
             }
             await Task.WhenAll(consumers);
         }
         private async Task StartConsumer(IModel channel, QueueReceiverSetting qSetting)
         {
-            var rawmessage = channel.BasicGet(qSetting.MethodName.ToString() + "_CallBack", false);
-            if (rawmessage == null)
+            try
             {
-                return;
-            }
-
-            qSetting.CallBackCallCount++;
-            var body = rawmessage.Body.ToArray();
-            var callCount = (int)rawmessage.BasicProperties.Headers["CallCount"];
-            if (callCount >= qSetting.CallBackMaxCallCount && qSetting.MaxCallCount != -1)
-            {
-                channel.BasicAck(rawmessage.DeliveryTag, multiple: false);
-                return;
-            }
-            if (qSetting.CallBackCallCount <= qSetting.CallBackMaxCallsPerInterval)
-            {
-                var message = Encoding.UTF8.GetString(body);
-                var requestBody = JsonConvert.DeserializeObject(message);
-                try
+                var rawmessage = channel.BasicGet(qSetting.MethodName.ToString() + "_CallBack", false);
+                if (rawmessage == null)
                 {
-                    var result = await SendToCallBack(requestBody, qSetting.CallBackAddress);
-                    if (result != null && result.Success)
+                    return;
+                }
+
+                qSetting.CallBackCallCount++;
+                var body = rawmessage.Body.ToArray();
+                var callCount = (int)rawmessage.BasicProperties.Headers["CallCount"];
+                if (callCount >= qSetting.CallBackMaxCallCount && qSetting.MaxCallCount != -1)
+                {
+                    channel.BasicAck(rawmessage.DeliveryTag, multiple: false);
+                    return;
+                }
+                if (qSetting.CallBackCallCount <= qSetting.CallBackMaxCallsPerInterval)
+                {
+                    var message = Encoding.UTF8.GetString(body);
+                    var requestBody = JsonConvert.DeserializeObject(message);
+                    try
                     {
-                        channel.BasicAck(rawmessage.DeliveryTag, multiple: false);
+                        var result = await SendToCallBack(requestBody, qSetting.CallBackAddress);
+                        if (result != null && result.Success)
+                        {
+                            channel.BasicAck(rawmessage.DeliveryTag, multiple: false);
+                        }
+                        else
+                        {
+                            await BackToEndOfTheQueue(channel, rawmessage, message, qSetting.MethodName, callCount);
+                        }
                     }
-                    else
+                    catch (Exception ex)
                     {
                         await BackToEndOfTheQueue(channel, rawmessage, message, qSetting.MethodName, callCount);
                     }
-                }
-                catch (Exception ex)
-                {
-                    await BackToEndOfTheQueue(channel, rawmessage, message, qSetting.MethodName, callCount);
-                }
 
+                }
+                else
+                {
+                    BackToFrontOfTheQueue(channel, rawmessage);
+                }
             }
-            else
+            finally
             {
-                BackToFrontOfTheQueue(channel, rawmessage);
+                await Task.FromResult(true);
             }
-            qSetting.CallBackCallCount--;
         }
 
         private async Task<CallBackResponse> SendToCallBack(object? requestBody, string? callBackAddress)
@@ -109,7 +115,7 @@ namespace ServiceResource.Business.Queue
         private async Task BackToEndOfTheQueue(IModel channel, BasicGetResult rawmessage, string serializedRequest, MethodName methodName, int callCount)
         {
             channel.BasicNack(rawmessage.DeliveryTag, multiple: false, requeue: false);
-            await QueueHandler.InsertInQueueCallBack(serializedRequest, methodName, callCount+1);
+            await QueueHandler.InsertInQueueCallBack(serializedRequest, methodName, callCount + 1);
         }
     }
 }

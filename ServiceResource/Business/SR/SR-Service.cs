@@ -1,7 +1,9 @@
 ﻿using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using ServiceResource.Dto;
 using ServiceResource.Enums;
 using ServiceResource.Interfaces;
+using ServiceResource.Persistence.Log.Entities;
 using System.Reflection;
 using System.Text.Json.Serialization;
 using YouRest;
@@ -14,11 +16,12 @@ public class SR_Service : ISR_Service
     public Dictionary<ServiceCallingMode, Func<SRRequest, Task<SRResponse>>> CallingMode = new Dictionary<ServiceCallingMode, Func<SRRequest, Task<SRResponse>>>();
     //public Interfaces.ILogger Logger { get; }
     public IQueueHandler QueueRepository { get; }
+    public ILogRepository Logger { get; }
 
-    public SR_Service(IQueueHandler queueRepository)
+    public SR_Service(IQueueHandler queueRepository, ILogRepository logger)
     {
-        // Logger = logger;
         QueueRepository = queueRepository;
+        Logger = logger;
         CallingMode.Add(ServiceCallingMode.Immediate, CallImmediate);
         CallingMode.Add(ServiceCallingMode.QueueOnFaild, CallQueueOnFaild);
         CallingMode.Add(ServiceCallingMode.DirectlyToQueue, CallDirectlyToQueue);
@@ -28,14 +31,23 @@ public class SR_Service : ISR_Service
     public async Task<SRResponse> CallProcessAsync(SRRequest request)
     {
         SRResponse response = new SRResponse();
+        Exception exeptio = null;
         //Insert Request Log
-        //Logger.Log(new Persistence.Log.Entities.RequestLog
-        //{
-        //    //TODO : Sensetive Data Must Be Removed
-        //    Input = JsonConvert.SerializeObject(request.Input),
-        //    PointerId = request.PointerId,
-        //    Service_MethodName = request.MethodName.ToString(),
-        //});
+        var RequestLog = new RequestLog
+        {
+            Input = JsonConvert.SerializeObject(TryRemoveSensitiveDataFromJson(JsonConvert.SerializeObject(request.Input), request.InputSensitiveData)),
+            PointerId = request.PointerId,
+            MethodName = request.MethodName,
+            CallTime = DateTime.Now,
+        };
+        try
+        {
+            await Logger.Log(RequestLog);
+        }
+        catch (Exception ex)
+        {
+        }
+
 
         try
         {
@@ -51,6 +63,7 @@ public class SR_Service : ISR_Service
         }
         catch (Exception ex)
         {
+            exeptio = ex;
             var settings = new JsonSerializerSettings
             {
                 TypeNameHandling = TypeNameHandling.Auto
@@ -62,27 +75,121 @@ public class SR_Service : ISR_Service
                 {
                     Message = ex.Message,
                     StackTrace = ex.StackTrace
-                    // Set any other necessary properties
                 },
                 Message = "مشکل",
                 Response = null,
-                Success = false
+                Success = SuccessInfo.Faild
             };
         }
         finally
         {
-            //Insert ResponseLog
-            //Logger.Log(new Persistence.Log.Entities.ResponseLog
-            //{
-            //    //TODO : Sensetive Data Must Be Removed
-            //    Input = JsonConvert.SerializeObject(request.Input),
-            //    Output = JsonConvert.SerializeObject(response),
-            //    PointerId = request.PointerId,
-            //    Service_MethodName = request.MethodName.ToString(),
-            //});
+            try
+            {//Insert ResponseLog
+                var responselog = new ResponseLog
+                {
+                    Input = JsonConvert.SerializeObject(TryRemoveSensitiveDataFromJson(JsonConvert.SerializeObject(request.Input), request.InputSensitiveData)),
+                    Output = JsonConvert.SerializeObject(TryRemoveSensitiveDataFromJson(response.Response, request.OutputSensitiveData)),
+                    PointerId = request.PointerId,
+                    MethodName = request.MethodName,
+                    CallTime = RequestLog.CallTime,
+                    ErrorCode = -100,
+                    ResponseTime = DateTime.Now,
+                    Exception = exeptio != null ? JsonConvert.SerializeObject(exeptio) : JsonConvert.SerializeObject(response.Exception),
+                    RequestId = RequestLog.Id,
+                    SummeryData = response.Success.ToString(),
+                };
+
+                await Logger.Log(responselog);
+            }
+            catch (Exception ex)
+            {
+
+            }
         }
 
 
+    }
+
+    private static object? TryRemoveSensitiveData(object input, List<string>? sensitiveData)
+    {
+        if (input == null || sensitiveData == null)
+            return null;
+
+        var properties = sensitiveData;
+
+        foreach (var property in properties)
+        {
+            var propertyParts = property.Split('.');
+            object currentObject = input;
+
+            foreach (var part in propertyParts)
+            {
+                var propertyInfo = currentObject.GetType().GetProperty(part);
+
+                if (propertyInfo == null)
+                    break;
+
+                if (propertyInfo.PropertyType.IsClass && propertyInfo.PropertyType != typeof(string))
+                {
+                    currentObject = propertyInfo.GetValue(currentObject);
+                }
+                else
+                {
+                    propertyInfo.SetValue(currentObject, "***");
+                }
+            }
+        }
+
+        return input;
+    }
+    private static object? TryRemoveSensitiveDataFromJson(string jsonString, List<string>? inputSensitiveData)
+    {
+        if (inputSensitiveData == null || string.IsNullOrWhiteSpace(jsonString))
+            return jsonString;
+
+        var jObject = JObject.Parse(jsonString);
+        ReplaceSensitiveFields(jObject, inputSensitiveData);
+
+        return jObject;
+    }
+
+    private static void ReplaceSensitiveFields(JObject jObject, List<string> sensitiveFields)
+    {
+        foreach (var fieldPath in sensitiveFields)
+        {
+            var fieldNames = fieldPath.Split('.');
+            var token = jObject;
+            for (int i = 0; i < fieldNames.Length; i++)
+            {
+                var fieldName = fieldNames[i];
+
+                string fieldNameToLower = fieldName.ToLower(); // Convert fieldName to lowercase
+
+                // Loop through the properties of the jObject
+                foreach (var property in token.Properties())
+                {
+                    string propertyNameToLower = property.Name.ToLower(); // Convert property name to lowercase
+
+                    // Compare the lowercase property name with the lowercase fieldName
+                    if (propertyNameToLower == fieldNameToLower)
+                    {
+                        if (i == fieldNames.Length - 1)
+                        {
+                            property.Value = "***";
+                        }
+                        else if (property.Value is JObject nestedObject)
+                        {
+                            token = nestedObject;
+                        }
+                        else
+                        {
+                            break; // Stop replacing if intermediate field is not an object
+                        }
+                        break; // Exit the loop if a match is found
+                    }
+                }
+            }
+        }
     }
 
     private async Task<SRResponse> CallImmediate(SRRequest request)
@@ -95,11 +202,12 @@ public class SR_Service : ISR_Service
             Exception = null,
             Message = "Ok.",
             Response = JsonConvert.SerializeObject(result),
-            Success = true
+            Success = SuccessInfo.Success
         };
     }
     private async Task<SRResponse> CallQueueOnFaild(SRRequest request)
     {
+        SuccessInfo successInfo = SuccessInfo.Success;
         var ClassInstance = GetClassInstance(request);
         try
         {
@@ -116,6 +224,7 @@ public class SR_Service : ISR_Service
                 }
 
                 await InsertInQueue(request);
+                successInfo = SuccessInfo.Faild_But_Inserted_In_Queue;
             }
         //Send For Check Result
         Success:
@@ -125,7 +234,7 @@ public class SR_Service : ISR_Service
                 Exception = null,
                 Message = "Ok.",
                 Response = JsonConvert.SerializeObject(result),
-                Success = true
+                Success = successInfo
             };
         }
         catch (Exception ex)
@@ -142,15 +251,20 @@ public class SR_Service : ISR_Service
             }
             //Insert In Queue
             await InsertInQueue(request);
+            successInfo = SuccessInfo.Faild_But_Inserted_In_Queue;
 
         Success:
             return new SRResponse
             {
                 ErrorCode = 0,
-                Exception = null,
+                Exception = new ExceptionDto
+                {
+                    Message = ex.Message,
+                    StackTrace = ex.StackTrace,
+                },
                 Message = "Ok.",
-                Response = JsonConvert.SerializeObject(ex),
-                Success = true
+                Response = null,
+                Success = successInfo
             };
         }
 
@@ -172,6 +286,10 @@ public class SR_Service : ISR_Service
             {
                 goto Success;
             }
+            else
+            {
+                throw new Exception("CheckResult.GetResponse().Faild");
+            }
         }
     Success: return new SRResponse
     {
@@ -179,7 +297,7 @@ public class SR_Service : ISR_Service
         Exception = null,
         Message = "Ok.",
         Response = JsonConvert.SerializeObject(result),
-        Success = true
+        Success = SuccessInfo.Success
     };
     }
     private async Task InsertInQueue(SRRequest request)
@@ -211,7 +329,7 @@ public class SR_Service : ISR_Service
                 Exception = null,
                 Message = "Ok.",
                 Response = JsonConvert.SerializeObject(request.Mock.Response),
-                Success = true,
+                Success = SuccessInfo.Success,
             };
         }
         if (request.Mock.ExpectedAnswer == ExpectedAnswer.Faild && request.Mock.Exception != null)
@@ -226,7 +344,7 @@ public class SR_Service : ISR_Service
                 },
                 Message = "Exception.",
                 Response = null,
-                Success = false,
+                Success = SuccessInfo.Faild,
             };
         }
         throw new Exception(); //TODO

@@ -13,5 +13,7 @@ namespace ServiceResource.Dto
         public Mock? Mock { get; set; }
         public CheckResult? CheckResult { get; set; }
         public QueueVar? QueueSetting { get; set; }
+        public List<string>? InputSensitiveData { get; set; }
+        public List<string>? OutputSensitiveData { get; set; }
     }
 }

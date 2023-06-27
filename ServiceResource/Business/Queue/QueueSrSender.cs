@@ -38,49 +38,55 @@ namespace ServiceResource.Business.Queue
             var consumers = new List<Task>();
             for (int i = 0; i < QSetting?.MaxCallsPerInterval; i++)
             {
-                consumers.Add(Task.Run(() => StartConsumer(channel, QSetting)));
+                consumers.Add(Task.Run(() => StartConsumer(channel, QSetting)).ContinueWith((x) => { QSetting.CallCount--; }));
             }
             await Task.WhenAll(consumers);
         }
 
         private async Task StartConsumer(IModel channel, QueueReceiverSetting qSetting)
         {
-            var rawmessage = channel.BasicGet(qSetting.MethodName.ToString(), false);
-            if (rawmessage == null)
+            try
             {
-                return;
-            }
+                var rawmessage = channel.BasicGet(qSetting.MethodName.ToString(), false);
+                if (rawmessage == null)
+                {
+                    return;
+                }
 
-            qSetting.CallCount++;
-            var body = rawmessage.Body.ToArray();
-            var callCount = (int)rawmessage.BasicProperties.Headers["CallCount"];
-            if (callCount >= qSetting.MaxCallCount && qSetting.MaxCallCount != -1)
-            {
-                channel.BasicAck(rawmessage.DeliveryTag, multiple: false);
-                return;
-            }
-            if (qSetting.CallCount <= qSetting.MaxCallsPerInterval)
-            {
-                var message = Encoding.UTF8.GetString(body);
-                var requestBody = JsonConvert.DeserializeObject<SRRequest>(message);
-                requestBody.CallingMode = Enums.ServiceCallingMode.ImmediateWithCheckResult;
-                var result = await SR_Service.CallProcessAsync(requestBody);
-                if (result.Success)
+                qSetting.CallCount++;
+                var body = rawmessage.Body.ToArray();
+                var callCount = (int)rawmessage.BasicProperties.Headers["CallCount"];
+                if (callCount >= qSetting.MaxCallCount && qSetting.MaxCallCount != -1)
                 {
                     channel.BasicAck(rawmessage.DeliveryTag, multiple: false);
-                    await QueueHandler.InsertInQueueCallBack(result.Response, qSetting.MethodName, 0);
-                    //channel.BasicPublish(exchange: "", routingKey: qSetting.MethodName.ToString() + "_CallBack", basicProperties: null, body: body);
+                    return;
+                }
+                if (qSetting.CallCount <= qSetting.MaxCallsPerInterval)
+                {
+                    var message = Encoding.UTF8.GetString(body);
+                    var requestBody = JsonConvert.DeserializeObject<SRRequest>(message);
+                    requestBody.CallingMode = Enums.ServiceCallingMode.ImmediateWithCheckResult;
+                    var result = await SR_Service.CallProcessAsync(requestBody);
+                    if (result.Success == Enums.SuccessInfo.Success)
+                    {
+                        channel.BasicAck(rawmessage.DeliveryTag, multiple: false);
+                        await QueueHandler.InsertInQueueCallBack(result.Response, qSetting.MethodName, 0);
+                    }
+                    else
+                    {
+                        await BackToEndOfTheQueue(channel, rawmessage, requestBody, callCount);
+                    }
                 }
                 else
                 {
-                    await BackToEndOfTheQueue(channel, rawmessage, requestBody, callCount);
+                    BackToFrontOfTheQueue(channel, rawmessage);
                 }
             }
-            else
+            finally
             {
-                BackToFrontOfTheQueue(channel, rawmessage);
+                await Task.FromResult(true);
             }
-            qSetting.CallCount--;
+
         }
 
         private static void BackToFrontOfTheQueue(IModel channel, BasicGetResult rawmessage)
@@ -91,8 +97,7 @@ namespace ServiceResource.Business.Queue
         private async Task BackToEndOfTheQueue(IModel channel, BasicGetResult rawmessage, SRRequest request, int callCount)
         {
             channel.BasicNack(rawmessage.DeliveryTag, multiple: false, requeue: false);
-            await QueueHandler.InsertInQueue(request, callCount+1);
-            //channel.BasicPublish(exchange: "", routingKey: qSetting.MethodName.ToString(), basicProperties: null, body: body);
+            await QueueHandler.InsertInQueue(request, callCount + 1);
         }
     }
 }

@@ -1,11 +1,12 @@
 ﻿using Newtonsoft.Json;
+using ServiceResource.Enums;
 using static Common;
 
 namespace ServiceResource.Dto
 {
     public class SRResponse
     {
-        public bool Success { get; set; }
+        public SuccessInfo Success { get; set; }
         public ExceptionDto? Exception { get; set; }
         public string? Message { get; set; }
         public int ErrorCode { get; set; }
