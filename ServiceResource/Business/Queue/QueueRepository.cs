@@ -11,7 +11,7 @@ namespace ServiceResource.Business.Queue
     public class QueueRepository : IQueueRepository
     {
         public static List<QueueSetting> QueueSettings { get; set; }
-
+        public static List<QueueReceiverSetting> queueReceiverSettings { get; set; }
         public QueueRepository(IConfiguration configuration)
         {
             var optionsBuilder = new DbContextOptionsBuilder<QueueContext>();
@@ -23,6 +23,27 @@ namespace ServiceResource.Business.Queue
                 {
                     QueueSettings = dbContext.QueueSetting.ToList();
                 }
+                if (queueReceiverSettings == null || queueReceiverSettings.Count == 0)
+                {
+                    queueReceiverSettings = new List<QueueReceiverSetting>();
+                    foreach (var setting in QueueSettings)
+                    {
+                        queueReceiverSettings.Add(new QueueReceiverSetting
+                        {
+                            MethodName = setting.MethodName,
+                            Interval_Sec = setting.Interval_Sec,
+                            CallBackAddress = setting.CallBackAddress,
+                            CallBackInterval_Sec = setting.CallBackInterval_Sec,
+                            MaxCallCount = setting.MaxCallCount,
+                            CallBackMaxCallCount = setting.CallBackMaxCallCount,
+                            CallBackMaxCallsPerInterval = setting.CallBackMaxCallsPerInterval,
+                            Id = setting.Id,
+                            MaxCallsPerInterval = setting.MaxCallsPerInterval,
+                            CallBackCallCount = 0,
+                            CallCount = 0
+                        });
+                    }
+                }
             }
         }
 
@@ -33,22 +54,6 @@ namespace ServiceResource.Business.Queue
 
         public async Task<List<QueueReceiverSetting>> GetReceiverSettingAsync()
         {
-            List<QueueReceiverSetting> queueReceiverSettings = new List<QueueReceiverSetting>();
-            foreach (var setting in QueueSettings)
-            {
-                queueReceiverSettings.Add(new QueueReceiverSetting
-                {
-                    MethodName = setting.MethodName,
-                    Interval_Sec = setting.Interval_Sec,
-                    CallBackAddress = setting.CallBackAddress,
-                    CallBackInterval_Sec = setting.CallBackInterval_Sec,
-                    MaxCallCount = setting.MaxCallCount,
-                    CallBackMaxCallCount = setting.CallBackMaxCallCount,
-                    CallBackMaxCallsPerInterval = setting.CallBackMaxCallsPerInterval,
-                    Id = setting.Id,
-                    MaxCallsPerInterval = setting.MaxCallsPerInterval,
-                });
-            }
             return queueReceiverSettings;
         }
 

@@ -26,7 +26,7 @@ public static class RunQueue
         {
             IDictionary<string, object> keyValuePairs = new Dictionary<string, object>
             {
-                { "QSetting", QSetting },
+                { "MethodName", QSetting.MethodName },
             };
 
             //Reciver SR

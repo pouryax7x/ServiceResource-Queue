@@ -59,8 +59,8 @@ namespace ServiceResource.Business.Queue
 
                 var body = Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(request));
 
-                channel.BasicPublish(exchange: "", routingKey: QueueName, basicProperties: properties, body: body);
 
+                channel.BasicPublish(exchange: "", routingKey: QueueName, basicProperties: properties, body: body);
 
                 return channel.WaitForConfirms(TimeSpan.FromSeconds(10)); // Wait for confirmation result
             }

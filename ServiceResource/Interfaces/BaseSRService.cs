@@ -40,6 +40,6 @@ namespace ServiceResource.Interfaces
             }
         }
 
-        public abstract Task<object> GetResponse(object input);
+        public abstract Task<object> GetResponse(object input , int sendTimeoutInSeconds);
     }
 }

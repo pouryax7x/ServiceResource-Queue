@@ -11,12 +11,12 @@ namespace ServiceResource.Services
         {
                 
         }
-        public override async Task<object> GetResponse(object input)
+        public override async Task<object> GetResponse(object input , int timeout)
         {
             RestCaller restCaller = new RestCaller(new RestStaticProperties
             {
                 BaseAddress = "http://localhost:5005/",
-                Timeout = TimeSpan.FromSeconds(5)
+                Timeout = TimeSpan.FromSeconds(timeout)
             });
             var caller = restCaller.CallRestService<object>(new RestRequest_VM
             {

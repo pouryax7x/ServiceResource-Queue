@@ -32,6 +32,7 @@ public class SR_Service : ISR_Service
     {
         SRResponse response = new SRResponse();
         Exception exeptio = null;
+        SuccessInfo Success = SuccessInfo.Success;
         //Insert Request Log
         var RequestLog = new RequestLog
         {
@@ -54,12 +55,15 @@ public class SR_Service : ISR_Service
             //Check For Mock
             if (request.Mock != null)
             {
-                return response = await MockResponse(request);
+                 response = await MockResponse(request);
+                Success = response.Success;
+                return response;
             }
 
             //Call Based On ServiceCallingMode
-            return response = await CallingMode[request.CallingMode](request);
-
+             response = await CallingMode[request.CallingMode](request);
+            Success = response.Success;
+            return response;
         }
         catch (Exception ex)
         {
@@ -68,6 +72,7 @@ public class SR_Service : ISR_Service
             {
                 TypeNameHandling = TypeNameHandling.Auto
             };
+            Success = SuccessInfo.Faild;
             return new SRResponse
             {
                 ErrorCode = -100,
@@ -78,7 +83,7 @@ public class SR_Service : ISR_Service
                 },
                 Message = "مشکل",
                 Response = null,
-                Success = SuccessInfo.Faild
+                Success = Success
             };
         }
         finally
@@ -96,7 +101,7 @@ public class SR_Service : ISR_Service
                     ResponseTime = DateTime.Now,
                     Exception = exeptio != null ? JsonConvert.SerializeObject(exeptio) : JsonConvert.SerializeObject(response.Exception),
                     RequestId = RequestLog.Id,
-                    SummeryData = response.Success.ToString(),
+                    SummeryData = Success.ToString()
                 };
 
                 await Logger.Log(responselog);
@@ -195,7 +200,7 @@ public class SR_Service : ISR_Service
     private async Task<SRResponse> CallImmediate(SRRequest request)
     {
         var ClassInstance = GetClassInstance(request);
-        var result = await ClassInstance.GetResponse(request.Input);
+        var result = await ClassInstance.GetResponse(request.Input , request.SendTimeoutSecounds);
         return new SRResponse
         {
             ErrorCode = 0,
@@ -211,7 +216,7 @@ public class SR_Service : ISR_Service
         var ClassInstance = GetClassInstance(request);
         try
         {
-            var result = await ClassInstance.GetResponse(request.Input);
+            var result = await ClassInstance.GetResponse(request.Input , request.SendTimeoutSecounds);
             if (request.CheckResult != null)
             {
                 RestResponse_VM<CheckResultResponse> CheckResult = CallCheckResponse(new CheckResultRequest { Success = true, Exception = null, Response = result, MethodName = request.MethodName });
@@ -277,7 +282,7 @@ public class SR_Service : ISR_Service
     private async Task<SRResponse> ImmediateWithCheckResult(SRRequest request)
     {
         var ClassInstance = GetClassInstance(request);
-        var result = await ClassInstance.GetResponse(request.Input);
+        var result = await ClassInstance.GetResponse(request.Input, request.SendTimeoutSecounds);
         if (request.CheckResult != null)
         {
             RestResponse_VM<CheckResultResponse> CheckResult = CallCheckResponse(new CheckResultRequest { Success = true, Exception = null, Response = result, MethodName = request.MethodName });

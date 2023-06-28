@@ -1,9 +1,11 @@
-﻿using Newtonsoft.Json;
+﻿using Microsoft.Identity.Client;
+using Newtonsoft.Json;
 using Quartz;
 using RabbitMQ.Client;
 using ServiceResource.Dto;
 using ServiceResource.Enums;
 using ServiceResource.Interfaces;
+using ServiceResource.Persistence.Queue.Entities;
 using System.Text;
 using YouRest;
 using YouRest.Interface.Body;
@@ -12,6 +14,8 @@ namespace ServiceResource.Business.Queue
 {
     public class QueueCallbackSender : QueueReciverBase
     {
+        private static SemaphoreSlim semaphore = new SemaphoreSlim(1);
+        private static int currentCallCount = 0;
         public QueueCallbackSender(ISR_Service sR_Service, IQueueRepository queueRepository, IQueueHandler queueHandler)
         {
             SR_Service = sR_Service;
@@ -25,22 +29,39 @@ namespace ServiceResource.Business.Queue
 
         public override async Task Execute(IJobExecutionContext context)
         {
-            var QSetting = context.MergedJobDataMap["QSetting"] as QueueReceiverSetting;
-            var factory = QueueRepository.GetFactory();
-            var channel = factory.CreateConnection().CreateModel();
-            var arguments = new Dictionary<string, object>
+            await semaphore.WaitAsync();
+            try
+            {
+                var methodName = (MethodName)Enum.Parse(typeof(MethodName), context.MergedJobDataMap["MethodName"].ToString());
+                var QSetting = await QueueRepository.GetQueueSetting(methodName);
+
+                var factory = QueueRepository.GetFactory();
+                var channel = factory.CreateConnection().CreateModel();
+                var arguments = new Dictionary<string, object>
                     {
                         { "x-message-deduplication", true } // Enable message deduplication for the queue
                     };
-            channel.QueueDeclare(queue: QSetting.MethodName.ToString() + "_CallBack", durable: true, exclusive: false, autoDelete: false, arguments: arguments);
-            var consumers = new List<Task>();
-            for (int i = 0; i < QSetting?.CallBackMaxCallsPerInterval; i++)
-            {
-                consumers.Add(Task.Run(() => StartConsumer(channel, QSetting)).ContinueWith((x) => { QSetting.CallBackCallCount--; }));
+                channel.QueueDeclare(queue: QSetting.MethodName.ToString() + "_CallBack", durable: true, exclusive: false, autoDelete: false, arguments: arguments);
+
+
+                for (int i = 0; i < QSetting?.CallBackMaxCallsPerInterval; i++)
+                {
+                    if (currentCallCount < QSetting.CallBackMaxCallsPerInterval)
+                    {
+                        Task.Run(() =>
+                        {
+                            StartConsumer(channel, QSetting);
+                        });
+                        currentCallCount++;
+                    }
+                }
             }
-            await Task.WhenAll(consumers);
+            finally
+            {
+                semaphore.Release();
+            }
         }
-        private async Task StartConsumer(IModel channel, QueueReceiverSetting qSetting)
+        private async Task StartConsumer(IModel channel, QueueSetting qSetting)
         {
             try
             {
@@ -49,44 +70,38 @@ namespace ServiceResource.Business.Queue
                 {
                     return;
                 }
-
-                qSetting.CallBackCallCount++;
                 var body = rawmessage.Body.ToArray();
                 var callCount = (int)rawmessage.BasicProperties.Headers["CallCount"];
-                if (callCount >= qSetting.CallBackMaxCallCount && qSetting.MaxCallCount != -1)
+                if (callCount >= qSetting.CallBackMaxCallCount && qSetting.CallBackMaxCallCount != -1)
                 {
                     channel.BasicAck(rawmessage.DeliveryTag, multiple: false);
                     return;
                 }
-                if (qSetting.CallBackCallCount <= qSetting.CallBackMaxCallsPerInterval)
+
+                var message = Encoding.UTF8.GetString(body);
+                var requestBody = JsonConvert.DeserializeObject(message);
+                try
                 {
-                    var message = Encoding.UTF8.GetString(body);
-                    var requestBody = JsonConvert.DeserializeObject(message);
-                    try
+                    var result = await SendToCallBack(requestBody, qSetting.CallBackAddress);
+                    if (result != null && result.Success)
                     {
-                        var result = await SendToCallBack(requestBody, qSetting.CallBackAddress);
-                        if (result != null && result.Success)
-                        {
-                            channel.BasicAck(rawmessage.DeliveryTag, multiple: false);
-                        }
-                        else
-                        {
-                            await BackToEndOfTheQueue(channel, rawmessage, message, qSetting.MethodName, callCount);
-                        }
+                        channel.BasicAck(rawmessage.DeliveryTag, multiple: false);
                     }
-                    catch (Exception ex)
+                    else
                     {
                         await BackToEndOfTheQueue(channel, rawmessage, message, qSetting.MethodName, callCount);
                     }
-
                 }
-                else
+                catch (Exception ex)
                 {
-                    BackToFrontOfTheQueue(channel, rawmessage);
+                    await BackToEndOfTheQueue(channel, rawmessage, message, qSetting.MethodName, callCount);
                 }
+
+
             }
             finally
             {
+                Interlocked.Decrement(ref currentCallCount);
                 await Task.FromResult(true);
             }
         }

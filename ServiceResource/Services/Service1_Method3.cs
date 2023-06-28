@@ -5,7 +5,7 @@ namespace ServiceResource.Services
 {
     public class Service1_Method3 : BaseSRService
     {
-        public override async Task<object> GetResponse(object input)
+        public override async Task<object> GetResponse(object input , int timeout)
         {
             throw new NotImplementedException();
         }
