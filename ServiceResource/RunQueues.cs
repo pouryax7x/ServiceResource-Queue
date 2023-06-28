@@ -16,11 +16,8 @@ public static class RunQueue
         var schedulerFactory = app.ApplicationServices.GetRequiredService<ISchedulerFactory>();
         var scheduler = await schedulerFactory.GetScheduler();
 
-        List<QueueReceiverSetting> queueReceiverSettings = new List<QueueReceiverSetting>();
-
         var QueueRepository = app.ApplicationServices.GetService<IQueueRepository>();
-
-        queueReceiverSettings = await QueueRepository.GetReceiverSettingAsync();
+        var queueReceiverSettings = await QueueRepository.GetQueueSettings();
 
         foreach (var QSetting in queueReceiverSettings)
         {

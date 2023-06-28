@@ -21,7 +21,6 @@ namespace ServiceResource.Interfaces
 
         private async Task<bool> CheckRestServiceAvailability()
         {
-            // TODO
             using (HttpClient client = new HttpClient())
             {
                 HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Head, serviceUrl);
@@ -32,7 +31,6 @@ namespace ServiceResource.Interfaces
 
         private async Task<bool> CheckSoapServiceAvailability()
         {
-            // TODO
             using (HttpClient client = new HttpClient())
             {
                 HttpResponseMessage response = await client.GetAsync(serviceUrl + "?wsdl");

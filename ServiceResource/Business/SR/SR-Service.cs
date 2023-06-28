@@ -221,7 +221,7 @@ public class SR_Service : ISR_Service
             {
                 RestResponse_VM<CheckResultResponse> CheckResult = CallCheckResponse(new CheckResultRequest { Success = true, Exception = null, Response = result, MethodName = request.MethodName });
 
-                if (!CheckResult.IsSuccess) throw new Exception(); //TODO
+                if (!CheckResult.IsSuccess) throw new Exception("فرایند چک ریزالت با مشکل مواجه شد");
 
                 if (CheckResult.GetResponse().Success)
                 {
@@ -248,7 +248,7 @@ public class SR_Service : ISR_Service
             {
                 RestResponse_VM<CheckResultResponse> CheckResult = CallCheckResponse(new CheckResultRequest { Success = false, Exception = ex, Response = null });
 
-                if (!CheckResult.IsSuccess) throw new Exception(); //TODO
+                if (!CheckResult.IsSuccess) throw new Exception("فرایند چک ریزالت با مشکل مواجه شد");
                 if (CheckResult.GetResponse().Success)
                 {
                     goto Success;
@@ -286,7 +286,7 @@ public class SR_Service : ISR_Service
         if (request.CheckResult != null)
         {
             RestResponse_VM<CheckResultResponse> CheckResult = CallCheckResponse(new CheckResultRequest { Success = true, Exception = null, Response = result, MethodName = request.MethodName });
-            if (!CheckResult.IsSuccess) throw new Exception(); //TODO
+            if (!CheckResult.IsSuccess) throw new Exception("فرایند چک ریزالت با مشکل مواجه شد"); 
             if (CheckResult.GetResponse().Success)
             {
                 goto Success;
@@ -352,7 +352,7 @@ public class SR_Service : ISR_Service
                 Success = SuccessInfo.Faild,
             };
         }
-        throw new Exception(); //TODO
+        throw new Exception("مشکلی در سرویس ماک به وجود آمده است"); 
     }
     private static BaseSRService GetClassInstance(SRRequest request)
     {

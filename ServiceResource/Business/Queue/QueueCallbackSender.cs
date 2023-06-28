@@ -96,8 +96,6 @@ namespace ServiceResource.Business.Queue
                 {
                     await BackToEndOfTheQueue(channel, rawmessage, message, qSetting.MethodName, callCount);
                 }
-
-
             }
             finally
             {

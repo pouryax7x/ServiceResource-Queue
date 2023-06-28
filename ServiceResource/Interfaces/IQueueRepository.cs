@@ -9,6 +9,6 @@ namespace ServiceResource.Interfaces
     {
         public ConnectionFactory GetFactory();
         public Task<QueueSetting> GetQueueSetting(MethodName methodName);
-        public Task<List<QueueReceiverSetting>> GetReceiverSettingAsync();
+        public Task<List<QueueSetting>> GetQueueSettings();
     }
 }
