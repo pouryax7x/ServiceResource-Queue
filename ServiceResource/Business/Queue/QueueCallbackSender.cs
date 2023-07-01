@@ -126,7 +126,8 @@ namespace ServiceResource.Business.Queue
                         ExtraInformation = extraInfo,
                         MethodName = qSetting.MethodName,
                         PointerId = pointerId,
-                        QueueState = "Send To SR"
+                        QueueState = "Send To SR",
+                        InsertDate = DateTime.Now,
 
                     });
                 }
