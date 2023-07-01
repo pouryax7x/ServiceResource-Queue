@@ -24,23 +24,49 @@ namespace ServiceResource.Infrastructure
 
         public async Task Log(RequestLog requestLog)
         {
-            using (var dbContext = new LogContext(Builder.Options))
+            try
             {
-                await dbContext.RequestLog.AddAsync(requestLog);
-                await dbContext.SaveChangesAsync(new CancellationToken());
+                using (var dbContext = new LogContext(Builder.Options))
+                {
+                    await dbContext.RequestLog.AddAsync(requestLog);
+                    await dbContext.SaveChangesAsync(new CancellationToken());
+                }
             }
+            catch (Exception)
+            {
 
-
-
-
+            }
         }
 
         public async Task Log(ResponseLog responseLog)
         {
-            using (var dbContext = new LogContext(Builder.Options))
+            try
             {
-                await dbContext.ResponseLog.AddAsync(responseLog);
-                await dbContext.SaveChangesAsync(new CancellationToken());
+                using (var dbContext = new LogContext(Builder.Options))
+                {
+                    await dbContext.ResponseLog.AddAsync(responseLog);
+                    await dbContext.SaveChangesAsync(new CancellationToken());
+                }
+            }
+            catch (Exception)
+            {
+
+            }
+        }
+
+        public async Task Log(QueueLog queueLog)
+        {
+            try
+            {
+                using (var dbContext = new LogContext(Builder.Options))
+                {
+                    await dbContext.QueueLog.AddAsync(queueLog);
+                    await dbContext.SaveChangesAsync(new CancellationToken());
+                }
+            }
+            catch (Exception)
+            {
+
             }
         }
     }

@@ -28,11 +28,12 @@ public class SR_Service : ISR_Service
         CallingMode.Add(ServiceCallingMode.ImmediateWithCheckResult, ImmediateWithCheckResult);
     }
 
-    public async Task<SRResponse> CallProcessAsync(SRRequest request)
+    public async Task<SRResponse> CallProcessAsync(SRRequest request, string InitialSource = "Application")
     {
         SRResponse response = new SRResponse();
         Exception exeptio = null;
         SuccessInfo Success = SuccessInfo.Success;
+
         //Insert Request Log
         var RequestLog = new RequestLog
         {
@@ -41,27 +42,20 @@ public class SR_Service : ISR_Service
             MethodName = request.MethodName,
             CallTime = DateTime.Now,
         };
-        try
-        {
-            await Logger.Log(RequestLog);
-        }
-        catch (Exception ex)
-        {
-        }
-
-
+        await Logger.Log(RequestLog);
+        
         try
         {
             //Check For Mock
             if (request.Mock != null)
             {
-                 response = await MockResponse(request);
+                response = await MockResponse(request);
                 Success = response.Success;
                 return response;
             }
 
             //Call Based On ServiceCallingMode
-             response = await CallingMode[request.CallingMode](request);
+            response = await CallingMode[request.CallingMode](request);
             Success = response.Success;
             return response;
         }
@@ -88,31 +82,23 @@ public class SR_Service : ISR_Service
         }
         finally
         {
-            try
-            {//Insert ResponseLog
-                var responselog = new ResponseLog
-                {
-                    Input = JsonConvert.SerializeObject(TryRemoveSensitiveDataFromJson(JsonConvert.SerializeObject(request.Input), request.InputSensitiveData)),
-                    Output = JsonConvert.SerializeObject(TryRemoveSensitiveDataFromJson(response.Response, request.OutputSensitiveData)),
-                    PointerId = request.PointerId,
-                    MethodName = request.MethodName,
-                    CallTime = RequestLog.CallTime,
-                    ErrorCode = -100,
-                    ResponseTime = DateTime.Now,
-                    Exception = exeptio != null ? JsonConvert.SerializeObject(exeptio) : JsonConvert.SerializeObject(response.Exception),
-                    RequestId = RequestLog.Id,
-                    SummeryData = Success.ToString()
-                };
-
-                await Logger.Log(responselog);
-            }
-            catch (Exception ex)
+            //Insert ResponseLog
+            var responselog = new ResponseLog
             {
+                Input = JsonConvert.SerializeObject(TryRemoveSensitiveDataFromJson(JsonConvert.SerializeObject(request.Input), request.InputSensitiveData)),
+                Output = JsonConvert.SerializeObject(TryRemoveSensitiveDataFromJson(response.Response, request.OutputSensitiveData)),
+                PointerId = request.PointerId,
+                MethodName = request.MethodName,
+                CallTime = RequestLog.CallTime,
+                ErrorCode = -100,
+                ResponseTime = DateTime.Now,
+                Exception = exeptio != null ? JsonConvert.SerializeObject(exeptio) : JsonConvert.SerializeObject(response.Exception),
+                RequestId = RequestLog.Id,
+                SummeryData = JsonConvert.SerializeObject(new { Success = Success.ToString(), InitialSource = InitialSource })
+            };
 
-            }
+            await Logger.Log(responselog);
         }
-
-
     }
 
     private static object? TryRemoveSensitiveData(object input, List<string>? sensitiveData)
@@ -200,7 +186,7 @@ public class SR_Service : ISR_Service
     private async Task<SRResponse> CallImmediate(SRRequest request)
     {
         var ClassInstance = GetClassInstance(request);
-        var result = await ClassInstance.GetResponse(request.Input , request.SendTimeoutSecounds);
+        var result = await ClassInstance.GetResponse(request.Input, request.SendTimeoutSecounds);
         return new SRResponse
         {
             ErrorCode = 0,
@@ -216,7 +202,7 @@ public class SR_Service : ISR_Service
         var ClassInstance = GetClassInstance(request);
         try
         {
-            var result = await ClassInstance.GetResponse(request.Input , request.SendTimeoutSecounds);
+            var result = await ClassInstance.GetResponse(request.Input, request.SendTimeoutSecounds);
             if (request.CheckResult != null)
             {
                 RestResponse_VM<CheckResultResponse> CheckResult = CallCheckResponse(new CheckResultRequest { Success = true, Exception = null, Response = result, MethodName = request.MethodName });
@@ -286,7 +272,7 @@ public class SR_Service : ISR_Service
         if (request.CheckResult != null)
         {
             RestResponse_VM<CheckResultResponse> CheckResult = CallCheckResponse(new CheckResultRequest { Success = true, Exception = null, Response = result, MethodName = request.MethodName });
-            if (!CheckResult.IsSuccess) throw new Exception("فرایند چک ریزالت با مشکل مواجه شد"); 
+            if (!CheckResult.IsSuccess) throw new Exception("فرایند چک ریزالت با مشکل مواجه شد");
             if (CheckResult.GetResponse().Success)
             {
                 goto Success;
@@ -352,7 +338,7 @@ public class SR_Service : ISR_Service
                 Success = SuccessInfo.Faild,
             };
         }
-        throw new Exception("مشکلی در سرویس ماک به وجود آمده است"); 
+        throw new Exception("مشکلی در سرویس ماک به وجود آمده است");
     }
     private static BaseSRService GetClassInstance(SRRequest request)
     {

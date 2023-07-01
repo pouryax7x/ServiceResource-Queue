@@ -17,6 +17,7 @@ namespace ServiceResource.Persistence.Log.Entities
         public required int ErrorCode { get; set; }
         public long RequestId { get; set; }
         public required DateTime ResponseTime { get; set; }
+        public string? UserData { get; set; }
 
     }
 }

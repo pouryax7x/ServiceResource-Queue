@@ -13,6 +13,7 @@ namespace ServiceResource.Persistence.Log.Context
         }
         public DbSet<RequestLog> RequestLog { get; set; }
         public DbSet<ResponseLog> ResponseLog { get; set; }
+        public DbSet<QueueLog> QueueLog { get; set; }
         public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken)
         {
             int count = await base.SaveChangesAsync(cancellationToken);

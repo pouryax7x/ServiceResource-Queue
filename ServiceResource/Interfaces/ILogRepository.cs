@@ -6,5 +6,6 @@ namespace ServiceResource.Interfaces
     {
         public Task Log(RequestLog requestLog);
         public Task Log(ResponseLog responseLog);
+        public Task Log(QueueLog queueLog);
     }
 }
