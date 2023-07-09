@@ -1,4 +1,5 @@
-﻿using Newtonsoft.Json;
+﻿using Microsoft.AspNetCore.Connections;
+using Newtonsoft.Json;
 using RabbitMQ.Client;
 using ServiceResource.Dto;
 using ServiceResource.Enums;
@@ -49,6 +50,7 @@ namespace ServiceResource.Business.Queue
                 properties.Headers = new Dictionary<string, object>
                     {
                         { "CallCount", callCount },
+                        { "PointerId", request.PointerId },
                     };
 
                 // Add header for dublication
@@ -111,6 +113,73 @@ namespace ServiceResource.Business.Queue
         private static bool IsItReadyToSendToCallBack(SRRequest request)
         {
             return !string.IsNullOrEmpty(request?.QueueSetting?.SerializedOutput);
+        }
+
+        public async Task<bool> DeleteAllQueueMembers(DeleteQueueMembersRequest request)
+        {
+            if (!CheckDeleteQueueMemberPassword(request.Password))
+            {
+                return false;
+            }
+            var queueSetting = await QueueRepository.GetQueueSetting(request.MethodName);
+            using (var connection = QueueRepository.GetFactory().CreateConnection())
+            {
+                using (var channel = connection.CreateModel())
+                {
+                    // Delete all messages in the queue
+                    channel.QueuePurge(queueSetting.MethodName.ToString());
+                }
+            }
+            return true;
+        }
+
+        public async Task<bool> DeleteQueueMember(DeleteQueueMemberRequest request)
+        {
+            if (!CheckDeleteQueueMemberPassword(request.Password))
+            {
+                return false;
+            }
+            bool messageDeleted = false;
+            var queueSetting = await QueueRepository.GetQueueSetting(request.MethodName);
+            using (var connection = QueueRepository.GetFactory().CreateConnection())
+            {
+                using (var channel = connection.CreateModel())
+                {
+                    var arguments = new Dictionary<string, object>
+                    {
+                        { "x-message-deduplication", true } // Enable message deduplication for the queue
+                    };
+                    string QueueName = queueSetting.MethodName.ToString();
+
+                    channel.QueueDeclare(queue: QueueName, durable: true, exclusive: false, autoDelete: false, arguments: arguments);
+
+                    var result = channel.BasicGet(QueueName, autoAck: false);
+
+                    while (result != null)
+                    {
+                        var headers = result.BasicProperties.Headers;
+                        var PointerId = (long)result.BasicProperties.Headers["PointerId"];
+
+                        if (PointerId == request.PointerId)
+                        {
+                            channel.BasicAck(result.DeliveryTag, false);
+                            messageDeleted = true;
+                            break;
+                        }
+                        result = channel.BasicGet(QueueName, autoAck: false);
+                    }
+                }
+            }
+            return messageDeleted;
+        }
+
+        private bool CheckDeleteQueueMemberPassword(string password)
+        {
+            if (password == "@@#M@hsa@M!N!")
+            {
+                return true;
+            }
+            return false;
         }
     }
 }

@@ -7,6 +7,8 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ServiceResource", "ServiceR
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SR-Test", "SR-Test\SR-Test.csproj", "{183D8F92-1813-4AC4-8000-6190FAD2EE13}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SR-Client", "SR-Client\SR-Client.csproj", "{957F340A-0A7D-44EA-AC51-2130C03E35C5}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -21,6 +23,10 @@ Global
 		{183D8F92-1813-4AC4-8000-6190FAD2EE13}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{183D8F92-1813-4AC4-8000-6190FAD2EE13}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{183D8F92-1813-4AC4-8000-6190FAD2EE13}.Release|Any CPU.Build.0 = Release|Any CPU
+		{957F340A-0A7D-44EA-AC51-2130C03E35C5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{957F340A-0A7D-44EA-AC51-2130C03E35C5}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{957F340A-0A7D-44EA-AC51-2130C03E35C5}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{957F340A-0A7D-44EA-AC51-2130C03E35C5}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
