@@ -35,7 +35,7 @@ public static class RunQueue
             ITrigger trigger1 = TriggerBuilder.Create()
                 .ForJob(QueueRecevierSR)
                 .WithIdentity($"QueueRecevierSRTrigger_{QSetting.Id}", "QueueRecevierSR")
-                .WithSimpleSchedule(x => x.WithIntervalInSeconds(QSetting.Interval_Sec).RepeatForever())
+                .WithCronSchedule(QSetting.IntervalCronSchedule)
                 .Build();
 
             // schedule job
@@ -43,7 +43,7 @@ public static class RunQueue
             await scheduler.ScheduleJob(QueueRecevierSR, trigger1);
 
             //Reciver CallBack
-            if (QSetting.CallBackInterval_Sec != 0 &&
+            if (!string.IsNullOrEmpty(QSetting.CallBackIntervalCronSchedule) &&
                 !string.IsNullOrEmpty(QSetting.CallBackAddress) &&
                 QSetting.CallBackMaxCallsPerInterval > 0)
             {
@@ -55,7 +55,7 @@ public static class RunQueue
                 ITrigger trigger2 = TriggerBuilder.Create()
                    .ForJob(QueueRecevierCallBack)
                    .WithIdentity($"QueueRecevierCallBackTrigger_{QSetting.Id}", "QueueRecevierCallBack")
-                   .WithSimpleSchedule(x => x.WithIntervalInSeconds(QSetting.CallBackInterval_Sec).RepeatForever())
+                   .WithCronSchedule(QSetting.CallBackIntervalCronSchedule)
                    .Build();
 
                 // schedule job

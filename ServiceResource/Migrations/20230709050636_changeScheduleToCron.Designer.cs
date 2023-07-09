@@ -2,6 +2,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using ServiceResource.Persistence.Queue.Context;
 
@@ -10,9 +11,11 @@ using ServiceResource.Persistence.Queue.Context;
 namespace ServiceResource.Migrations
 {
     [DbContext(typeof(QueueContext))]
-    partial class QueueContextModelSnapshot : ModelSnapshot
+    [Migration("20230709050636_changeScheduleToCron")]
+    partial class changeScheduleToCron
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
